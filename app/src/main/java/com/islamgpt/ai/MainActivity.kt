@@ -65,10 +65,21 @@ private fun IslamGptScreen(activity: Activity) {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf("") }
     var pendingClickTarget by remember { mutableStateOf<String?>(null) }
+    var updateInfo by remember { mutableStateOf<AppUpdate?>(null) }
+    var downloadedApk by remember { mutableStateOf<java.io.File?>(null) }
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var downloadingUpdate by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         delay(1050)
         startupLoading = false
+        runCatching {
+            val current = activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "0.1.0"
+            UpdateManager.checkForUpdate(current)
+        }.onSuccess { found ->
+            updateInfo = found
+            if (found != null) status = "يتوفر تحديث جديد: ${found.versionName}"
+        }
     }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -308,6 +319,90 @@ private fun IslamGptScreen(activity: Activity) {
                                             modifier = Modifier.weight(1f),
                                             shape = RoundedCornerShape(12.dp)
                                         ) { Text(if (serviceOn) "إيقاف المساعد" else "تشغيل المساعد") }
+                                    }
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF10182A))
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text("تحديث التطبيق", fontWeight = FontWeight.Bold)
+                                            Text(
+                                                updateInfo?.let { "الإصدار المتاح: ${it.versionName}" }
+                                                    ?: "يفحص التطبيق عن أحدث إصدار منشور على GitHub عند التشغيل.",
+                                                color = Color(0xFFB9C7E8),
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                OutlinedButton(
+                                                    modifier = Modifier.weight(1f),
+                                                    enabled = !checkingUpdate && !downloadingUpdate,
+                                                    onClick = {
+                                                        scope.launch {
+                                                            checkingUpdate = true
+                                                            try {
+                                                                val current = activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "0.1.0"
+                                                                updateInfo = UpdateManager.checkForUpdate(current)
+                                                                downloadedApk = null
+                                                                status = updateInfo?.let { "يتوفر تحديث ${it.versionName}." }
+                                                                    ?: "أنت تستخدم أحدث إصدار منشور."
+                                                            } catch (e: Exception) {
+                                                                status = e.message ?: "تعذر فحص التحديثات."
+                                                            } finally {
+                                                                checkingUpdate = false
+                                                            }
+                                                        }
+                                                    }
+                                                ) {
+                                                    Text(if (checkingUpdate) "جارٍ الفحص…" else "فحص التحديثات")
+                                                }
+                                                if (updateInfo != null && downloadedApk == null) {
+                                                    Button(
+                                                        modifier = Modifier.weight(1f),
+                                                        enabled = !downloadingUpdate && !checkingUpdate,
+                                                        onClick = {
+                                                            val target = updateInfo
+                                                            if (target != null) scope.launch {
+                                                                downloadingUpdate = true
+                                                                try {
+                                                                    downloadedApk = UpdateManager.downloadApk(activity, target)
+                                                                    status = "اكتمل تنزيل التحديث. اضغط «تثبيت» للمتابعة."
+                                                                } catch (e: Exception) {
+                                                                    status = e.message ?: "تعذر تنزيل التحديث."
+                                                                } finally {
+                                                                    downloadingUpdate = false
+                                                                }
+                                                            }
+                                                        }
+                                                    ) {
+                                                        Text(if (downloadingUpdate) "جارٍ التنزيل…" else "تنزيل")
+                                                    }
+                                                }
+                                                if (downloadedApk != null) {
+                                                    Button(
+                                                        modifier = Modifier.weight(1f),
+                                                        onClick = {
+                                                            try {
+                                                                val started = UpdateManager.installApk(activity, downloadedApk!!)
+                                                                status = if (started) {
+                                                                    "فتح مثبت Android. وافق على التحديث لإكماله."
+                                                                } else {
+                                                                    "اسمح لـ IslamGPT AI بتثبيت التطبيقات من هذا المصدر، ثم ارجع واضغط «تثبيت» مجددًا."
+                                                                }
+                                                            } catch (e: Exception) {
+                                                                status = e.message ?: "تعذر فتح مثبت Android."
+                                                            }
+                                                        }
+                                                    ) { Text("تثبيت") }
+                                                }
+                                            }
+                                        }
                                     }
                                     TextButton(
                                         onClick = { activity.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
