@@ -38,9 +38,9 @@ private data class ChatLine(val fromUser: Boolean, val text: String)
 @Composable
 private fun IslamGptScreen(activity: Activity) {
     val prefs = remember { activity.getSharedPreferences("islamgpt", Context.MODE_PRIVATE) }
-    var baseUrl by remember { mutableStateOf(prefs.getString("baseUrl", "https://api.openai.com/v1") ?: "") }
+    var baseUrl by remember { mutableStateOf(prefs.getString("baseUrl", "https://api.groq.com/openai/v1") ?: "") }
     var apiKey by remember { mutableStateOf(prefs.getString("apiKey", "") ?: "") }
-    var model by remember { mutableStateOf(prefs.getString("model", "gpt-4o-mini") ?: "") }
+    var model by remember { mutableStateOf(prefs.getString("model", "llama-3.3-70b-versatile") ?: "") }
     var prompt by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var serviceOn by remember { mutableStateOf(false) }
@@ -68,9 +68,9 @@ private fun IslamGptScreen(activity: Activity) {
         }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
                 Text("إعدادات الذكاء الاصطناعي", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(baseUrl, { baseUrl = it }, label = { Text("عنوان API") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(baseUrl, { baseUrl = it }, label = { Text("عنوان API (Groq: https://api.groq.com/openai/v1)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(apiKey, { apiKey = it }, label = { Text("مفتاح API") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(model, { model = it }, label = { Text("اسم النموذج") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(model, { model = it }, label = { Text("اسم النموذج (مثال: llama-3.3-70b-versatile)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         prefs.edit().putString("baseUrl", baseUrl.trim()).putString("apiKey", apiKey.trim()).putString("model", model.trim()).apply()
