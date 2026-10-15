@@ -1,13 +1,30 @@
 package com.islamgpt.ai
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
+import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
 /** Opt-in UI automation bridge. No event content is logged or transmitted. */
 class AssistantAccessibilityService : AccessibilityService() {
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+    }
+
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) { }
     override fun onInterrupt() {}
+
+    companion object {
+        @Volatile var instance: AssistantAccessibilityService? = null
+            private set
+    }
 
     fun goHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
     fun goBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
