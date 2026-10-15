@@ -64,6 +64,7 @@ private fun IslamGptScreen(activity: Activity) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf("") }
+    var pendingClickTarget by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         delay(1050)
@@ -95,6 +96,23 @@ private fun IslamGptScreen(activity: Activity) {
     )
 
     MaterialTheme(colorScheme = colors) {
+        pendingClickTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { pendingClickTarget = null },
+                title = { Text("تأكيد تنفيذ الأمر") },
+                text = { Text("هل تريد النقر على العنصر الظاهر الذي يحتوي على النص «$target» في التطبيق المفتوح؟") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val success = AssistantAccessibilityService.instance?.clickVisibleText(target) == true
+                        lines.add(ChatLine(false, if (success) "تم تنفيذ النقر على «$target»." else "تعذر النقر. تأكد من تفعيل خدمة إمكانية الوصول وأن العنصر ظاهر على الشاشة."))
+                        pendingClickTarget = null
+                    }) { Text("تأكيد النقر") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingClickTarget = null }) { Text("إلغاء") }
+                }
+            )
+        }
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(listOf(Color(0xFF0A1020), Color(0xFF111D35), Color(0xFF0A1020)))
@@ -389,16 +407,52 @@ private fun IslamGptScreen(activity: Activity) {
                                             val question = prompt.trim()
                                             prompt = ""
                                             lines.add(ChatLine(true, question))
-                                            busy = true
-                                            scope.launch {
-                                                try {
-                                                    val answer = ApiClient.ask(baseUrl, apiKey, model, question)
-                                                    lines.add(ChatLine(false, answer))
-                                                } catch (e: Exception) {
-                                                    lines.add(ChatLine(false, "تعذر إكمال الطلب: ${e.message ?: "خطأ غير معروف"}"))
-                                                } finally {
-                                                    busy = false
-                                                    listState.animateScrollToItem(lines.lastIndex.coerceAtLeast(0))
+                                            when (val command = PhoneCommandExecutor.parse(question)) {
+                                                PhoneCommand.Home, PhoneCommand.Back, PhoneCommand.Recents -> {
+                                                    val service = AssistantAccessibilityService.instance
+                                                    val succeeded = when (command) {
+                                                        PhoneCommand.Home -> service?.goHome() == true
+                                                        PhoneCommand.Back -> service?.goBack() == true
+                                                        PhoneCommand.Recents -> service?.openRecents() == true
+                                                        else -> false
+                                                    }
+                                                    lines.add(ChatLine(false, if (succeeded) {
+                                                        when (command) {
+                                                            PhoneCommand.Home -> "تم تنفيذ أمر الشاشة الرئيسية."
+                                                            PhoneCommand.Back -> "تم تنفيذ أمر الرجوع."
+                                                            else -> "تم فتح التطبيقات الأخيرة."
+                                                        }
+                                                    } else "لم أنفذ الأمر. افتح «إعدادات التحكم وإمكانية الوصول» وفعّل خدمة IslamGPT AI، ثم أعد المحاولة."))
+                                                }
+                                                is PhoneCommand.ClickText -> {
+                                                    pendingClickTarget = command.target
+                                                }
+                                                is PhoneCommand.OpenPackage -> {
+                                                    try {
+                                                        val launch = activity.packageManager.getLaunchIntentForPackage(command.packageName)
+                                                        if (launch != null) {
+                                                            activity.startActivity(launch)
+                                                            lines.add(ChatLine(false, "تم طلب فتح التطبيق ${command.packageName}."))
+                                                        } else {
+                                                            lines.add(ChatLine(false, "لم أجد تطبيقًا قابلًا للفتح بهذا المعرّف: ${command.packageName}."))
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        lines.add(ChatLine(false, "تعذر فتح التطبيق: ${e.message ?: "خطأ غير معروف"}"))
+                                                    }
+                                                }
+                                                null -> {
+                                                    busy = true
+                                                    scope.launch {
+                                                        try {
+                                                            val answer = ApiClient.ask(baseUrl, apiKey, model, question)
+                                                            lines.add(ChatLine(false, answer))
+                                                        } catch (e: Exception) {
+                                                            lines.add(ChatLine(false, "تعذر إكمال الطلب: ${e.message ?: "خطأ غير معروف"}"))
+                                                        } finally {
+                                                            busy = false
+                                                            listState.animateScrollToItem(lines.lastIndex.coerceAtLeast(0))
+                                                        }
+                                                    }
                                                 }
                                             }
                                         },
