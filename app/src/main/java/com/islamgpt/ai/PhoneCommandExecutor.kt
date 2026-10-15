@@ -42,6 +42,25 @@ object PhoneCommandExecutor {
                 return PhoneCommand.OpenPackage(packageName)
             }
         }
+
+        val aliases = mapOf(
+            "واتساب" to "com.whatsapp", "whatsapp" to "com.whatsapp",
+            "يوتيوب" to "com.google.android.youtube", "youtube" to "com.google.android.youtube",
+            "كروم" to "com.android.chrome", "chrome" to "com.android.chrome",
+            "الاعدادات" to "com.android.settings", "settings" to "com.android.settings",
+            "تيليجرام" to "org.telegram.messenger", "telegram" to "org.telegram.messenger",
+            "انستغرام" to "com.instagram.android", "instagram" to "com.instagram.android",
+            "تيك توك" to "com.zhiliaoapp.musically", "tiktok" to "com.zhiliaoapp.musically",
+            "فيسبوك" to "com.facebook.katana", "facebook" to "com.facebook.katana"
+        )
+        val simpleOpenPrefixes = listOf("افتح ", "شغل ", "open ").map(::normalize)
+        simpleOpenPrefixes.firstOrNull { normalized.startsWith(it) }?.let { prefix ->
+            val requested = normalized.removePrefix(prefix).trim()
+            aliases[requested]?.let { return PhoneCommand.OpenPackage(it) }
+            if (requested.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+"))) {
+                return PhoneCommand.OpenPackage(requested)
+            }
+        }
         return null
     }
 }
